@@ -1,0 +1,64 @@
+#面倒なことはPythonに任せよう
+#Webスクレイピングで英単語帳を作る
+#東京医科大学の医学英単語ページから、英単語と日本語のcsvを取得する。 csvデータをQuizletに入れて単語帳完成
+
+#スクレイピングするURL
+adress='http://www.tokyo-med.ac.jp/dimc/term/index.html'
+
+#numpy pandas BeautifleSoup urllibを使用する
+import numpy as np
+import pandas as pd
+import requests
+import bs4
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+
+#aタグ内の情報を取ってくる。今回のaタグの内容はIndexに埋め込まれた下位項目ページヘのリンク
+#adressはindexページでaタグは例えば麻酔科関連の単語ページ
+res = requests.get(adress)
+res.raise_for_status()
+soup = bs4.BeautifulSoup(res.text, "html.parser")
+elems = soup.select('a')
+
+#aタグの情報をリストに収納する
+link_list=[]
+for elem in elems:
+    link_list.append(elem.get('href'))
+
+#今回のデータはリストの３番目からが取り出したいもの。ここは実際のデータをみて適宜変更
+link_list = link_list[2:]
+
+#link_listはadress内の相対タグなので絶対タグに変換し、新たにリストに格納
+adress_list=[]
+for i in link_list:
+    j=urljoin(adress, i)
+    adress_list.append(j)
+    
+    
+# urlのHTMLを取得
+for url in adress_list:
+    html = urllib.request.urlopen(url)
+
+    # htmlをBeautifulSoupでパース
+    soup = BeautifulSoup(html, "html.parser")
+
+    # タイトル要素の取得
+    print(soup.title) # <title>〇〇科</title>
+
+    # タイトル要素の文字列を取得
+    print(soup.title.string) # 〇〇科
+
+    # タイトル文字列からファイルネームにする単語を取得
+    s = soup.title.string
+    l = s.split() #5つの単語を含んだリスト
+    filename = '_'.join(l[4:]) #５つ目以降の文字をつなげてタイトルにする
+    
+    # 単語データを読み込む
+    data = pd.read_html(url)
+    #NaNを排除
+    data = data[0].dropna(axis = 0, how = 'any')
+    #列に名前をつける
+    output_data=data.rename(columns={0:'English Word',1: '日本語訳'})
+    
+    # 名前をつけてCSVファイルで保存
+    output_data.to_csv(filename + '.csv', encoding='utf_8_sig')
